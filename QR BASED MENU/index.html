@@ -289,8 +289,7 @@
                 <img id="app-logo-img" class="logo-img" src="logo.png" style="display:none"
                     onload="this.style.display='block'">
             </div>
-            <div id="auth-btn" class="auth-pill"
-                onclick="document.getElementById('auth-modal').classList.remove('hidden')">Login</div>
+            <div id="auth-btn" class="auth-pill" onclick="location.href='home.html'">Login</div>
         </div>
 
         <!-- Controls -->
@@ -418,11 +417,14 @@
                 // Update Auth UI logic
                 auth.onAuthStateChanged(u => {
                     if (u) {
-                        document.getElementById('auth-btn').innerText = "My Profile";
-                        document.getElementById('auth-btn').onclick = showProfile;
+                        // Logged In: Hide the button completely
+                        document.getElementById('auth-btn').style.display = 'none';
                     } else {
-                        document.getElementById('auth-btn').innerText = "Login / Signup";
-                        document.getElementById('auth-btn').onclick = () => document.getElementById('auth-modal').classList.remove('hidden');
+                        // Logged Out: Show Login button with correct redirect
+                        const btn = document.getElementById('auth-btn');
+                        btn.style.display = 'block';
+                        btn.innerText = "Login";
+                        btn.onclick = () => location.href = 'home.html';
                     }
                 });
 
