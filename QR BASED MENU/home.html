@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SnapFood Pro</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <style>
+        .home-container {
+            padding-bottom: 120px;
+        }
+
+        #camera-feed {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -100;
+            filter: brightness(0.7) blur(var(--blur-amt, 10px));
+            transform: scale(1.1);
+            transition: filter 0.2s;
+        }
+
+        .pro-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px 24px;
+            padding-top: max(20px, env(safe-area-inset-top));
+            z-index: 50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+            pointer-events: none;
+        }
+
+        .header-btn {
+            pointer-events: auto;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        /* Announcement Bar */
+        #announce-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 28px;
+            background: #FF9F1C;
+            z-index: 60;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: black;
+            font-weight: 700;
+            font-size: 0.8rem;
+            overflow: hidden;
+            display: none;
+        }
+
+        .marquee {
+            white-space: nowrap;
+            animation: scroll 15s linear infinite;
+            padding-left: 100%;
+        }
+
+        @keyframes scroll {
+            0% {
+                transform: translateX(0);
+            }
+
+            100% {
+                transform: translateX(-100%);
+            }
+        }
+
+        /* Maintenance Overlay */
+        #maint-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px;
+            color: #fff;
+            display: none;
+        }
+
+        /* Hero Carousel */
+        .hero-section {
+            position: relative;
+            width: 100%;
+            height: 50vh;
+            overflow: hidden;
+            border-bottom-left-radius: 32px;
+            border-bottom-right-radius: 32px;
+            mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+        }
+
+        .carousel-track {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .hero-slide {
+            min-width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .hero-bg {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .hero-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(0deg, #000 0%, transparent 60%);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 30px 24px;
+        }
+
+        .hero-tag {
+            background: var(--accent-color);
+            color: #000;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            width: fit-content;
+            margin-bottom: 8px;
+        }
+
+        .dots-row {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        /* NEW ARROWS */
+        .hero-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(5px);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            z-index: 20;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            user-select: none;
+        }
+
+        .hero-arrow.left {
+            left: 15px;
+        }
+
+        .hero-arrow.right {
+            right: 15px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transition: 0.3s;
+        }
+
+        .dot.active {
+            background: #fff;
+            width: 24px;
+            border-radius: 4px;
+        }
+
+        .filters-area {
+            padding: 24px;
+            margin-top: -30px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .search-pill {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            height: 50px;
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            margin-bottom: 24px;
+        }
+
+        .search-pill input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: white;
+            font-size: 1rem;
+            width: 100%;
+        }
+
+        .cat-row {
+            display: flex;
+            gap: 15px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scrollbar-width: none;
+            align-items: flex-start;
+        }
+
+        /* NEW RICH CATEGORY STYLE */
+        .cat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            min-width: 70px;
+            cursor: pointer;
+            transition: 0.2s;
+            opacity: 0.6;
+        }
+
+        .cat-item.active {
+            opacity: 1;
+            transform: scale(1.05);
+        }
+
+        .cat-icon-box {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .cat-item.active .cat-icon-box {
+            background: var(--accent-color);
+            border-color: var(--accent-color);
+            box-shadow: 0 8px 20px rgba(255, 159, 28, 0.4);
+        }
+
+        .cat-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .cat-label {
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-align: center;
+            color: white;
+            white-space: nowrap;
+        }
+
+        .cat-item.active .cat-label {
+            font-weight: 700;
+            color: var(--accent-color);
+        }
+
+
+        .grid-area {
+            padding: 0 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .food-card {
+            background: var(--glass-bg-lighter);
+            border-radius: 24px;
+            overflow: hidden;
+            position: relative;
+            height: 240px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .food-card:active {
+            transform: scale(0.96);
+        }
+
+        .card-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .card-grad {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, transparent 50%);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 16px;
+        }
+
+        #auth-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(40px);
+            display: flex;
+            align-items: flex-end;
+        }
+
+        .sheet-content {
+            width: 100%;
+            background: #222;
+            border-top-left-radius: 32px;
+            border-top-right-radius: 32px;
+            padding: 32px;
+            padding-bottom: 60px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+            }
+
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            background: rgba(255, 255, 255, 0.1);
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+            margin: 10px 0;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+    <video id="camera-feed" autoplay playsinline muted></video>
+
+    <div id="announce-bar">
+        <div class="marquee" id="announce-text">Welcome!</div>
+    </div>
+
+    <div class="pro-header" id="header-el">
+        <div id="header-brand" style="display:flex; align-items:center; gap:10px;">
+            <img id="app-logo" src="" style="width:36px; height:36px; object-fit:contain; display:none;">
+            <h3 style="margin:0; font-size:1.4rem;" id="app-title">Loading...</h3>
+            <span id="close-tag"
+                style="background:red; font-size:0.7rem; padding:2px 6px; border-radius:4px; display:none;">CLOSED</span>
+        </div>
+        <div class="header-btn" onclick="toggleProfile()">
+            <span id="u-ava">👤</span>
+        </div>
+    </div>
+
+    <div class="home-container">
+        <!-- Hero Carousel -->
+        <div class="hero-section" id="hero-wrap" style="display:none">
+            <div class="carousel-track" id="c-track"></div>
+            <div class="dots-row" id="c-dots"></div>
+            <div class="hero-arrow left" onclick="prevSlide(event)">❮</div>
+            <div class="hero-arrow right" onclick="nextSlide(event)">❯</div>
+        </div>
+
+        <div class="filters-area">
+            <div class="search-pill">
+                <span style="opacity:0.6">🔍</span>
+                <input id="search" placeholder="Search for dishes...">
+            </div>
+
+            <!-- Category Row -->
+            <div class="cat-row" id="cats">
+                <!-- Injected via JS -->
+                <div style="opacity:0.5; font-size:0.8rem;">Loading Categories...</div>
+            </div>
+        </div>
+
+        <div class="grid-area" id="grid">
+            <div style="grid-column:1/-1; text-align:center; padding:50px; opacity:0.5;">Loading Menu...</div>
+        </div>
+    </div>
+
+    <!-- Auth Sheet -->
+    <div id="auth-modal" class="hidden">
+        <div class="sheet-content">
+            <div
+                style="width:40px; height:4px; background:rgba(255,255,255,0.2); border-radius:2px; margin:0 auto 20px;">
+            </div>
+
+            <!-- Login -->
+            <div id="view-login" class="hidden">
+                <h2 style="text-align:center; margin-bottom:24px">Welcome</h2>
+                <button class="btn"
+                    style="width:100%; margin-bottom:20px; background:white; color:black; display:flex; justify-content:center; gap:10px; font-weight:600; box-shadow:0 5px 15px rgba(255,255,255,0.1);"
+                    onclick="doGoogleLogin()">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20"> Continue
+                    with Google
+                </button>
+                <div
+                    style="display:flex; align-items:center; gap:10px; margin-bottom:20px; opacity:0.5; font-size:0.8rem;">
+                    <div style="height:1px; background:white; flex:1"></div> OR <div
+                        style="height:1px; background:white; flex:1"></div>
+                </div>
+                <input id="in-email" class="input-glass" placeholder="Email address" style="margin-bottom:12px;">
+                <input id="in-pass" type="password" class="input-glass" placeholder="Password"
+                    style="margin-bottom:20px;">
+                <div style="display:flex; gap:10px;">
+                    <button class="btn btn-primary" style="flex:1" onclick="doLogin()">Px Sign In</button>
+                    <button class="btn btn-glass" style="flex:1" onclick="doSignup()">Sign Up</button>
+                </div>
+            </div>
+
+            <!-- Profile -->
+            <div id="view-profile" class="hidden">
+                <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
+                    <h2 style="margin:0">Profile</h2>
+                    <button class="btn btn-glass" style="padding:5px 15px; font-size:0.8rem;" onclick="toggleEdit()"
+                        id="edit-btn">Edit</button>
+                </div>
+                <div style="display:flex; align-items:center; gap:16px; margin-bottom:20px;">
+                    <div style="width:60px; height:60px; background:var(--accent-color); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.5rem; color:#000; font-weight:700; overflow:hidden;"
+                        id="p-ava-wrap">
+                        <span id="p-ava">U</span>
+                        <img id="p-ava-img" src="" style="width:100%; height:100%; object-fit:cover; display:none;">
+                    </div>
+                    <div style="flex:1">
+                        <input id="p-name-in" class="input-glass" disabled value="User"
+                            style="margin-bottom:5px; padding:8px;">
+                    </div>
+                </div>
+                <input id="p-phone-in" class="input-glass" disabled placeholder="Phone Number"
+                    style="margin-bottom:20px; padding:8px;">
+                <button id="save-profile-btn" class="btn btn-primary full-width hidden" style="margin-bottom:20px;"
+                    onclick="saveProfile()">Save Changes</button>
+
+                <div style="background:rgba(255,255,255,0.05); border-radius:16px; padding:16px; margin-bottom:20px;">
+                    <h4 style="margin:0 0 10px 0;">Camera Blur</h4>
+                    <input type="range" id="blur-slider" min="0" max="30" oninput="updBlur(this.value)">
+                </div>
+
+                <div id="gift-area" class="hidden">
+                    <h4 style="margin-bottom:10px;">🎁 My Gifts</h4>
+                    <div id="gift-list" style="margin-bottom:20px; display:flex; flex-direction:column; gap:8px;"></div>
+                </div>
+
+                <h4 style="opacity:0.7; margin-bottom:16px;">Order History</h4>
+                <div id="order-list" style="margin-bottom:24px; display:flex; flex-direction:column; gap:10px;"></div>
+                <button class="btn btn-glass" style="width:100%" onclick="firebase.auth().signOut()">Sign Out</button>
+            </div>
+
+            <div style="text-align:center; margin-top:20px; opacity:0.5; font-size:0.9rem;" onclick="toggleProfile()">
+                Close</div>
+        </div>
+    </div>
+
+    <!-- Maintenance Overlay -->
+    <div id="maint-overlay">
+        <h1 style="font-size:3rem; margin-bottom:10px;">🚧</h1>
+        <h2 style="margin-bottom:10px;">Under Maintenance</h2>
+        <p style="opacity:0.7; max-width:300px;">We are currently upgrading our system. Please check back later.</p>
+    </div>
+
+    <script>
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        // PERFORMANCE: Enable Persistence
+        db.enablePersistence().catch(err => {
+            if (err.code == 'failed-precondition') console.log("Multiple tabs open");
+            else if (err.code == 'unimplemented') console.log("Browser no support");
+        });
+
+        let categories = [];
+        let allDishes = [];
+        let cart = [];
+        let currentUser = null;
+        let selectedAngle = {};
+        let slidesData = [];
+        let slideIdx = 0;
+        let slideTimer = null;
+        let CUR = '$';
+
+        const savedBlur = localStorage.getItem('blurPref') || '10';
+        document.documentElement.style.setProperty('--blur-amt', savedBlur + 'px');
+        document.getElementById('blur-slider').value = savedBlur;
+
+        function updBlur(v) { document.documentElement.style.setProperty('--blur-amt', v + 'px'); localStorage.setItem('blurPref', v); }
+
+        window.onload = () => {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(s => {
+                document.getElementById('camera-feed').srcObject = s;
+            });
+            loadSettings();
+            document.getElementById('search').addEventListener('input', e => renderGrid(e.target.value));
+        }
+
+        function loadSettings() {
+            db.collection('settings').doc('restaurant').onSnapshot(doc => {
+                const d = doc.exists ? doc.data() : {};
+
+                // Maintenance Logic
+                if (d.maintenanceMode) {
+                    document.getElementById('maint-overlay').style.display = 'flex';
+                } else {
+                    document.getElementById('maint-overlay').style.display = 'none';
+                }
+
+                // Announcement Logic
+                if (d.announcement) {
+                    document.getElementById('announce-bar').style.display = 'flex';
+                    document.getElementById('announce-text').innerText = d.announcement;
+                    document.getElementById('header-el').style.top = '28px';
+                } else {
+                    document.getElementById('announce-bar').style.display = 'none';
+                    document.getElementById('header-el').style.top = '0';
+                }
+
+                // Open/Close Status
+                if (d.isOpen === false) {
+                    document.getElementById('close-tag').style.display = 'block';
+                } else {
+                    document.getElementById('close-tag').style.display = 'none';
+                }
+
+                if (d.currency) CUR = d.currency;
+                document.getElementById('app-title').innerText = d.appTitle || 'SnapFood';
+                if (d.logo) { document.getElementById('app-logo').src = d.logo; document.getElementById('app-logo').style.display = 'block'; }
+                loadHero(); loadCategories();
+            });
+        }
+
+        /* HERO & SLIDES */
+        function loadHero() { db.collection('promotions').doc('home_hero').get().then(doc => { if (doc.exists) { const d = doc.data(); if (d.slides) slidesData = d.slides; else if (d.title) slidesData = [d]; if (slidesData.length > 0) { document.getElementById('hero-wrap').style.display = 'block'; renderSlides(); startSlideShow(); } } }); }
+        function renderSlides() { const track = document.getElementById('c-track'); const dots = document.getElementById('c-dots'); track.innerHTML = ''; dots.innerHTML = ''; slidesData.forEach((s, i) => { track.innerHTML += `<div class="hero-slide" onclick="location.href='index.html?id=${s.linkId}'"><img src="${s.imageUrl}" class="hero-bg"><div class="hero-overlay"><div class="hero-tag">Featured</div><h1 style="margin-bottom:8px">${s.title}</h1><div style="display:flex;align-items:center;gap:8px;opacity:0.9"><span style="font-weight:600">${s.btnText}</span><span>→</span></div></div></div>`; dots.innerHTML += `<div class="dot ${i === 0 ? 'active' : ''}"></div>`; }); }
+        function startSlideShow() {
+            if (slidesData.length < 2) return;
+            if (slideTimer) clearInterval(slideTimer);
+            slideTimer = setInterval(() => { slideIdx = (slideIdx + 1) % slidesData.length; updateSlide(); }, 5000);
+        }
+        function updateSlide() {
+            document.getElementById('c-track').style.transform = `translateX(-${slideIdx * 100}%)`;
+            document.querySelectorAll('.dot').forEach((d, i) => { if (i === slideIdx) d.classList.add('active'); else d.classList.remove('active'); });
+        }
+
+        // Manual Controls
+        let slideTouchStart = 0;
+        const heroEl = document.getElementById('hero-wrap');
+        heroEl.addEventListener('touchstart', e => slideTouchStart = e.touches[0].clientX);
+        heroEl.addEventListener('touchend', e => {
+            const dx = e.changedTouches[0].clientX - slideTouchStart;
+            if (Math.abs(dx) > 50) { if (dx > 0) prevSlide(); else nextSlide(); }
+        });
+
+        function nextSlide(e) { if (e) e.stopPropagation(); slideIdx = (slideIdx + 1) % slidesData.length; updateSlide(); resetTimer(); }
+        function prevSlide(e) { if (e) e.stopPropagation(); slideIdx = (slideIdx - 1 + slidesData.length) % slidesData.length; updateSlide(); resetTimer(); }
+        function resetTimer() { clearInterval(slideTimer); startSlideShow(); }
+
+        /* AUTH */
+        auth.onAuthStateChanged(u => {
+            currentUser = u;
+            if (u) {
+                document.getElementById('p-name-in').value = u.displayName || 'User';
+                if (u.photoURL) { document.getElementById('p-ava-img').src = u.photoURL; document.getElementById('p-ava-img').style.display = 'block'; document.getElementById('p-ava').style.display = 'none'; }
+                else { document.getElementById('p-ava-img').style.display = 'none'; document.getElementById('p-ava').innerText = (u.displayName || 'U')[0].toUpperCase(); document.getElementById('p-ava').style.display = 'block'; }
+                document.getElementById('view-login').classList.add('hidden'); document.getElementById('view-profile').classList.remove('hidden');
+                db.collection('users').doc(u.uid).get().then(doc => { if (doc.exists) { if (doc.data().phone) document.getElementById('p-phone-in').value = doc.data().phone; renderCoupons(doc.data().myCoupons, u.uid); } });
+                loadHistory(u.uid);
+            } else { document.getElementById('view-login').classList.remove('hidden'); document.getElementById('view-profile').classList.add('hidden'); }
+        });
+
+        function doGoogleLogin() { const provider = new firebase.auth.GoogleAuthProvider(); auth.signInWithPopup(provider).catch(e => alert(e.message)); }
+        function doLogin() { auth.signInWithEmailAndPassword(document.getElementById('in-email').value, document.getElementById('in-pass').value).catch(e => alert(e.message)); }
+        function doSignup() { auth.createUserWithEmailAndPassword(document.getElementById('in-email').value, document.getElementById('in-pass').value).then(c => c.user.updateProfile({ displayName: "New User" })).catch(e => alert(e.message)); }
+        function toggleEdit() {
+            const dis = document.getElementById('p-name-in').disabled;
+            document.getElementById('p-name-in').disabled = !dis; document.getElementById('p-phone-in').disabled = !dis;
+            if (dis) { document.getElementById('p-name-in').focus(); document.getElementById('edit-btn').innerText = 'Cancel'; document.getElementById('save-profile-btn').classList.remove('hidden'); }
+            else { document.getElementById('edit-btn').innerText = 'Edit'; document.getElementById('save-profile-btn').classList.add('hidden'); }
+        }
+        function saveProfile() {
+            const name = document.getElementById('p-name-in').value; const phone = document.getElementById('p-phone-in').value;
+            currentUser.updateProfile({ displayName: name }).then(() => { db.collection('users').doc(currentUser.uid).set({ name: name, phone: phone, email: currentUser.email }, { merge: true }).then(() => { alert("Profile Saved"); toggleEdit(); }); });
+        }
+        function renderCoupons(list, uid) {
+            const gt = document.getElementById('gift-list'); gt.innerHTML = '';
+            if (!list || !list.length) { document.getElementById('gift-area').classList.add('hidden'); return; }
+            document.getElementById('gift-area').classList.remove('hidden');
+            list.forEach(c => {
+                const div = document.createElement('div');
+                div.style.cssText = "background:linear-gradient(90deg, #FF9F1C 0%, #FF5E3A 100%); padding:12px; border-radius:12px; color:black; display:flex; justify-content:space-between; align-items:center;";
+                div.innerHTML = `<div onclick="navigator.clipboard.writeText('${c.code}');alert('Copied!')"><div style="font-weight:700">🎁 -${c.discount}%</div><div style="font-size:0.8rem; font-family:monospace;">${c.code}</div></div><button style="background:rgba(0,0,0,0.2); border:none; color:white; width:24px; height:24px; border-radius:50%; margin-left:10px;" onclick="delCoupon('${c.code}', '${uid}')">×</button>`;
+                gt.appendChild(div);
+            });
+        }
+        function delCoupon(code, uid) {
+            db.collection('users').doc(uid).get().then(doc => { const list = doc.data().myCoupons; const filtered = list.filter(item => item.code !== code); db.collection('users').doc(uid).update({ myCoupons: filtered }).then(() => renderCoupons(filtered, uid)); });
+        }
+
+        function loadHistory(uid) {
+            db.collection('orders').limit(50).onSnapshot(snap => {
+                const l = document.getElementById('order-list'); l.innerHTML = '';
+                const orders = [];
+                snap.forEach(doc => { let d = doc.data(); d.id = doc.id; if (d.userId === uid) orders.push(d); });
+                orders.sort((a, b) => (b.createdAt && b.createdAt.seconds || 0) - (a.createdAt && a.createdAt.seconds || 0));
+
+                if (!orders.length) { l.innerHTML = '<div style="opacity:0.5; text-align:center;">No orders yet</div>'; return; }
+                orders.forEach(d => {
+                    let dateStr = "Just now";
+                    if (d.createdAt && d.createdAt.seconds) {
+                        dateStr = new Date(d.createdAt.seconds * 1000).toLocaleString(undefined, { month: 'short', day: 'numeric', year: '2-digit', hour: 'numeric', minute: '2-digit' });
+                    }
+                    l.innerHTML += `
+                    <div style="background:rgba(255,255,255,0.05); padding:16px; border-radius:16px; display:flex; flex-direction:column; gap:8px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="font-weight:700; font-size:1.1rem;">${d.dishName}</div>
+                            <div style="color:${d.status === 'completed' ? '#30D158' : '#FF9F1C'}; font-size:0.8rem; font-weight:600; text-transform:uppercase;">${d.status}</div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; opacity:0.7; font-size:0.9rem;">
+                            <div>${dateStr}</div>
+                            <div>${CUR}${d.finalTotal}</div>
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                            <button class="btn btn-glass" style="padding:6px 12px; font-size:0.8rem;" onclick="location.href='bill.html?orderId=${d.id}'">📄 View Bill</button>
+                        </div>
+                    </div>`;
+                });
+            });
+        }
+
+        async function loadCategories() {
+            const snap = await db.collection('categories').orderBy('createdAt', 'asc').get();
+            const list = document.getElementById('cats'); list.innerHTML = '';
+
+            // Add "All"
+            list.innerHTML += `<div class="cat-item active" onclick="filterCat('All', this)"> <div class="cat-icon-box"><span style="font-size:1.5rem">🍽️</span></div> <div class="cat-label">All</div> </div>`;
+
+            snap.forEach(doc => {
+                const d = doc.data();
+                list.innerHTML += `<div class="cat-item" onclick="filterCat('${d.name}', this)"> <div class="cat-icon-box"><img src="${d.icon}" class="cat-img"></div> <div class="cat-label">${d.name}</div> </div>`;
+            });
+            loadMenu(); // Load menu after cats
+        }
+
+        async function loadMenu() {
+            const snap = await db.collection('dishes').get(); allDishes = [];
+            snap.forEach(doc => { const d = doc.data(); d.id = doc.id; allDishes.push(d); });
+            renderGrid();
+        }
+
+        window.filterCat = function (curr, el) {
+            document.querySelectorAll('.cat-item').forEach(x => x.classList.remove('active'));
+            el.classList.add('active');
+            renderGrid(document.getElementById('search').value, curr);
+        }
+
+        function renderGrid(term = '', catFilter) {
+            const grid = document.getElementById('grid'); grid.innerHTML = '';
+            const activeCat = catFilter || document.querySelector('.cat-item.active .cat-label')?.innerText || 'All';
+            const filtered = allDishes.filter(d => d.name.toLowerCase().includes(term.toLowerCase()) && (activeCat === 'All' || d.category === activeCat));
+            if (!filtered.length) { grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;opacity:0.5">No matches</div>'; return; }
+            filtered.forEach(d => {
+                const highlight = d.themeColor || 'var(--accent-color)';
+                grid.innerHTML += `<div class="food-card" onclick="location.href='index.html?id=${d.id}'" style="border-bottom:3px solid ${highlight}"><img src="${d.image}" class="card-img" loading="lazy"><div class="card-grad"><h4 style="margin:0; font-size:1rem;">${d.name}</h4><div style="font-weight:700; color:${highlight}">${CUR}${d.price}</div></div></div>`;
+            });
+        }
+        function toggleProfile() { document.getElementById('auth-modal').classList.toggle('hidden'); }
+    </script>
+</body>
+
+</html>

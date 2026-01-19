@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapFood Admin Pro</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            padding: 20px;
+            background: #111;
+            height: 100vh;
+            color: #eee;
+        }
+
+        .admin-layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .nav-btn {
+            text-align: left;
+            padding: 12px 15px;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.7);
+            border-radius: 10px;
+            transition: 0.2s;
+            border: 1px solid transparent;
+            font-size: 0.95rem;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+        }
+
+        .nav-btn.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--accent-color);
+            border-color: rgba(255, 255, 255, 0.1);
+            font-weight: 600;
+        }
+
+        .content {
+            overflow-y: auto;
+            padding-right: 5px;
+            height: 100%;
+        }
+
+        .tab-pane {
+            display: none;
+        }
+
+        .tab-pane.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            padding: 24px;
+        }
+
+        .list-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .list-row:last-child {
+            border-bottom: none;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        .input-glass {
+            width: 100%;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .input-color-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 5px 15px;
+            border-radius: 14px;
+            background: rgba(0, 0, 0, 0.3);
+            height: 54px;
+        }
+
+        input[type="color"] {
+            background: none;
+            border: none;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-primary {
+            background: #0A84FF;
+            color: white;
+        }
+
+        .btn-accent {
+            background: #FF9F1C;
+            color: black;
+        }
+
+        .btn-glass {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .full-width {
+            width: 100%;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .kpi-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 16px;
+        }
+
+        .kpi-val {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .kpi-lbl {
+            font-size: 0.9rem;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .filter-btn {
+            padding: 5px 15px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: transparent;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .filter-btn.active {
+            background: var(--accent-color);
+            color: #000;
+            border-color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-box {
+            background: #222;
+            padding: 30px;
+            border-radius: 20px;
+            width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .toggle-switch.on {
+            background: rgba(48, 209, 88, 0.2);
+            border: 1px solid #30D158;
+        }
+
+        .detail-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .detail-table td {
+            padding: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            color: #ccc;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="login-overlay"
+        style="position:fixed;inset:0;background:#000;z-index:999;display:flex;align-items:center;justify-content:center;">
+        <div class="glass-panel" style="padding:40px;width:350px;border-radius:24px;">
+            <h2 style="text-align:center;margin-bottom:20px;">Admin</h2>
+            <input type="email" id="adm-email" class="input-glass" placeholder="Email" style="margin-bottom:10px">
+            <input type="password" id="adm-pass" class="input-glass" placeholder="Password" style="margin-bottom:20px">
+            <button class="btn btn-primary" style="width:100%" onclick="login()">Login</button>
+        </div>
+    </div>
+    <!-- Notification Sound -->
+    <audio id="notif-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+        preload="auto"></audio>
+
+    <div class="admin-layout hidden" id="app-wrap">
+        <div class="sidebar glass-panel" style="border-radius:24px;">
+            <h3 style="margin-bottom:20px; padding-left:5px;" id="admin-brand">SnapFood<span
+                    style="color:var(--accent-color);">CMS</span></h3>
+            <div style="font-size:0.8rem; text-transform:uppercase; color:#666; margin:10px 0 5px 5px;">Operations</div>
+            <button class="nav-btn active" onclick="nav('orders')">📡 Live Orders</button>
+            <button class="nav-btn" onclick="nav('menu')">🍔 Menu & Colors</button>
+            <button class="nav-btn" onclick="nav('categories')">📁 Categories</button>
+            <button class="nav-btn" onclick="nav('customers')">👥 CRM & Gifts</button>
+
+            <div style="font-size:0.8rem; text-transform:uppercase; color:#666; margin:15px 0 5px 5px;">Insights</div>
+            <button class="nav-btn" onclick="nav('analytics')">📈 Analytics</button>
+            <button class="nav-btn" onclick="nav('reports')">📑 Reports</button>
+
+            <div style="font-size:0.8rem; text-transform:uppercase; color:#666; margin:15px 0 5px 5px;">Marketing &
+                Config</div>
+            <button class="nav-btn" onclick="nav('cms')">🎨 Hero Slides</button>
+            <button class="nav-btn" onclick="nav('coupons')">🎟️ Global Coupons</button>
+            <button class="nav-btn" onclick="nav('billing')">⚙️ Settings</button>
+            <button class="nav-btn" onclick="openQRTool()"
+                style="margin-top:5px; border: 1px solid rgba(255,255,255,0.1);">⬛ QR Generator</button>
+            <div style="flex-grow:1"></div>
+            <button class="nav-btn" onclick="firebase.auth().signOut()">Logout</button>
+        </div>
+        <div class="content">
+            <div id="tab-orders" class="tab-pane active">
+                <div class="glass-panel" style="padding:24px; min-height:80vh; border-radius:24px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                        <h2 style="margin:0;">Live Kitchen Dashboard</h2>
+                        <button class="btn btn-glass" onclick="exportData('orders')">⬇️ Export CSV</button>
+                    </div>
+                    <div id="orders-list">Loading...</div>
+                </div>
+            </div>
+
+            <!-- ANALYTICS TAB -->
+            <div id="tab-analytics" class="tab-pane">
+                <div class="glass-panel" style="margin-bottom:20px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                        <h2>Business Overview</h2>
+                        <div style="display:flex; gap:10px;">
+                            <button class="filter-btn active" onclick="loadAnalytics('today', this)">Today</button>
+                            <button class="filter-btn" onclick="loadAnalytics('month', this)">This Month</button>
+                            <button class="filter-btn" onclick="loadAnalytics('year', this)">Year</button>
+                            <button class="filter-btn" onclick="loadAnalytics('all', this)">All Time</button>
+                        </div>
+                    </div>
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-lbl">Total Sales</div>
+                            <div class="kpi-val" id="an-sales">$0</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-lbl">Total Orders</div>
+                            <div class="kpi-val" id="an-orders">0</div>
+                        </div>
+                        <div class="kpi-card">
+                            <div class="kpi-lbl">Avg Order Value</div>
+                            <div class="kpi-val" id="an-aov">$0</div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+                    <div class="glass-panel">
+                        <h3>Sales Breakdown (Daily)</h3>
+                        <div id="an-sales-break" style="margin-top:15px;"></div>
+                    </div>
+                    <div class="glass-panel">
+                        <h3>Top Selling (Qty)</h3>
+                        <div id="an-top-prod" style="margin-top:15px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- REPORTS TAB -->
+            <div id="tab-reports" class="tab-pane">
+                <div class="glass-panel" style="margin-bottom:20px;">
+                    <h3>Coupon Usage Analysis</h3>
+                    <p style="color:#aaa; font-size:0.8rem; margin-bottom:15px;">Click a coupon to see who used it.</p>
+                    <div id="rep-coupons"></div>
+                </div>
+                <div class="glass-panel">
+                    <h3>Detailed Customer History</h3>
+                    <input class="input-glass" placeholder="Search Customer Name..."
+                        oninput="filterCustHist(this.value)">
+                    <div id="rep-customers"></div>
+                </div>
+            </div>
+            <div id="tab-menu" class="tab-pane">
+                <div class="glass-panel" style="padding:24px; margin-bottom:20px; border-radius:24px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <h3 id="menu-head">Add Product</h3>
+                        <div style="display:flex;gap:10px;">
+                            <button class="btn btn-glass hidden" id="prod-cancel-btn" onclick="resetProdForm()">Cancel
+                                Edit</button>
+                            <button class="btn btn-glass" onclick="downloadTemplate('product')">⬇️ Template</button>
+                            <button class="btn btn-glass" onclick="document.getElementById('csv-in-prod').click()">⬆️
+                                Import CSV</button>
+                            <input type="file" id="csv-in-prod" accept=".csv" style="display:none"
+                                onchange="importCSV(this, 'dishes')">
+                            <button class="btn btn-glass" onclick="exportData('dishes')">⬇️ Export CSV</button>
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;">
+                        <input id="prod-name" class="input-glass full-width" placeholder="Product Name">
+                        <input id="prod-price" class="input-glass" type="number" placeholder="Price">
+                        <input id="prod-cat" class="input-glass" list="cats-list"
+                            placeholder="Search or Type Category...">
+                        <datalist id="cats-list"></datalist>
+                        <div class="input-color-wrap"><label style="font-size:0.9rem; color:#aaa;">Theme
+                                Color:</label><input id="prod-color" type="color" value="#FF9F1C"></div>
+                        <textarea id="prod-desc" class="input-glass full-width" rows="2" style="grid-column:1/-1"
+                            placeholder="Description"></textarea>
+                        <label style="grid-column:1/-1; color:#aaa; font-size:0.9rem; margin-top:5px;">Images (Max
+                            5)</label>
+                        <input id="prod-img" class="input-glass full-width" style="grid-column:1/-1"
+                            placeholder="1. Main Image URL (Required)">
+                        <div style="grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                            <input id="prod-angle1" class="input-glass" placeholder="2. Angle URL">
+                            <input id="prod-angle2" class="input-glass" placeholder="3. Angle URL">
+                            <input id="prod-angle3" class="input-glass" placeholder="4. Angle URL">
+                            <input id="prod-angle4" class="input-glass" placeholder="5. Angle URL">
+                        </div>
+                        <button class="btn btn-accent full-width" style="grid-column:1/-1; margin-top:10px;"
+                            id="prod-sub-btn" onclick="saveProduct()">+ Add Item</button>
+                    </div>
+                </div>
+                <div class="glass-panel" style="padding:20px; border-radius:24px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <h3>Current Menu</h3>
+                        <input id="menu-search" class="input-glass" placeholder="🔍 Search Products..."
+                            style="width:200px; margin:0;" oninput="filterMenu(this.value)">
+                    </div>
+                    <div id="menu-list"></div>
+                </div>
+            </div>
+            <div id="tab-categories" class="tab-pane">
+                <div class="glass-panel" style="padding:24px; margin-bottom:20px; border-radius:24px;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <h3 id="cat-head">Manage Categories</h3>
+                        <div style="display:flex;gap:10px;">
+                            <button class="btn btn-glass hidden" id="cat-cancel-btn" onclick="resetCatForm()">Cancel
+                                Edit</button>
+                            <button class="btn btn-glass" onclick="downloadTemplate('category')">⬇️ Template</button>
+                            <button class="btn btn-glass" onclick="document.getElementById('csv-in-cat').click()">⬆️
+                                Import CSV</button>
+                            <input type="file" id="csv-in-cat" accept=".csv" style="display:none"
+                                onchange="importCSV(this, 'categories')">
+                            <button class="btn btn-glass" onclick="exportData('categories')">⬇️ Export CSV</button>
+                        </div>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:15px; align-items:flex-end;">
+                        <input id="cat-name-in" class="input-glass" placeholder="Category Name"
+                            style="min-width:200px; flex:1;">
+                        <input id="cat-icon-in" class="input-glass" placeholder="Icon URL or Emoji"
+                            style="min-width:200px; flex:2;"
+                            oninput="document.getElementById('cat-preview').src=this.value">
+                        <img id="cat-preview" src=""
+                            style="width:40px;height:40px;border-radius:5px;object-fit:cover;background:#333;display:none"
+                            onload="this.style.display='block'" onerror="this.style.display='none'">
+                        <button id="cat-sub-btn" class="btn btn-primary" onclick="saveCategory()"
+                            style="min-width:120px;">Add Category</button>
+                        <button id="cat-cancel-edit" class="btn btn-glass hidden"
+                            onclick="resetCatForm()">Cancel</button>
+                    </div>
+                </div>
+                <div class="glass-panel" style="padding:20px; border-radius:24px;">
+                    <h3>Existing Categories</h3>
+                    <div id="cat-list-adm"></div>
+                </div>
+            </div>
+            <div id="tab-customers" class="tab-pane">
+                <div class="glass-panel" style="padding:24px; border-radius:24px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                        <h2 style="margin:0;">Registered Customers</h2>
+                        <input class="input-glass" placeholder="🔍 Search Users..."
+                            style="width:200px;margin-left:20px;" oninput="loadCustomers(this.value)">
+                    </div>
+                    <div style="display:flex;gap:10px;">
+                        <button class="btn btn-glass" onclick="downloadTemplate('user')">⬇️ Template</button>
+                        <button class="btn btn-glass" onclick="document.getElementById('csv-in-user').click()">⬆️
+                            Import CSV</button>
+                        <input type="file" id="csv-in-user" accept=".csv" style="display:none"
+                            onchange="importCSV(this, 'users')">
+                        <button class="btn btn-glass" onclick="exportData('users')">⬇️ Export CSV</button>
+                    </div>
+                </div>
+                <div id="user-list">Loading...</div>
+            </div>
+            <div id="tab-cms" class="tab-pane">
+                <div class="glass-panel" style="padding:24px; margin-bottom:20px; border-radius:24px;">
+                    <div style="display:flex; justify-content:space-between;">
+                        <h3 id="slide-head">Hero Slides</h3>
+                        <div style="display:flex;gap:10px;">
+                            <button class="btn btn-glass hidden" id="slide-cancel-btn" onclick="resetSlideForm()">Cancel
+                                Edit</button>
+                            <button class="btn btn-glass" onclick="exportData('promotions')">⬇️ Export CSV</button>
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; width:100%;">
+                        <div>
+                            <label class="form-label">Slide Title</label>
+                            <input id="slide-title" class="input-glass full-width" placeholder="e.g. Special Offer">
+                        </div>
+                        <div>
+                            <label class="form-label">Button Text</label>
+                            <input id="slide-btn" class="input-glass full-width" placeholder="e.g. Grab Deal">
+                        </div>
+
+                        <div style="grid-column:1/-1;">
+                            <label class="form-label">Banner Image URL</label>
+                            <div style="display:flex; gap:10px; align-items:center;">
+                                <input id="slide-img" class="input-glass" placeholder="https://..."
+                                    style="flex:1; margin-bottom:0;"
+                                    oninput="document.getElementById('slide-preview').src=this.value">
+                                <img id="slide-preview" src=""
+                                    style="height:42px; border-radius:4px; background:rgba(255,255,255,0.1); display:none;"
+                                    onload="this.style.display='block'" onerror="this.style.display='none'">
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="grid-column:1/-1; margin-bottom:0;">
+                            <label class="form-label">Link Dish (Type Name To Search)</label>
+                            <input id="slide-link-in" list="slide-dish-list" class="input-glass full-width"
+                                placeholder="Search Dish..." style="margin-bottom:0;">
+                            <datalist id="slide-dish-list"></datalist>
+                        </div>
+                        <button class="btn btn-primary full-width" style="grid-column:1/-1; margin-top:10px;"
+                            id="slide-sub-btn" onclick="saveSlide()">+ Add Slide</button>
+                    </div>
+                </div>
+                <div class="glass-panel" style="padding:20px; border-radius:24px;">
+                    <h3>Current Slides</h3>
+                    <div id="slides-list"></div>
+                </div>
+            </div>
+            <div id="tab-coupons" class="tab-pane">
+                <div class="glass-panel" style="padding:24px; margin-bottom:20px; border-radius:24px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <h3 id="coup-head">Create Global Coupon</h3>
+                        <div style="display:flex; gap:10px;">
+                            <button class="btn btn-glass hidden" id="coup-cancel-btn" onclick="resetCoupForm()">Cancel
+                                Edit</button>
+                            <button class="btn btn-glass" onclick="exportData('coupons')">⬇️ Export CSV</button>
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px; width:100%;">
+                        <div>
+                            <label class="form-label">Coupon Code</label>
+                            <input id="cup-code" class="input-glass full-width" placeholder="e.g. SAVE20">
+                        </div>
+                        <div>
+                            <label class="form-label">Discount %</label>
+                            <input id="cup-percent" class="input-glass full-width" type="number" placeholder="0-100">
+                        </div>
+                        <div>
+                            <label class="form-label">Max Uses (0 = Unlimited)</label>
+                            <input id="cup-limit" class="input-glass full-width" type="number"
+                                placeholder="Enter Limit">
+                        </div>
+                        <div style="display:flex; align-items:flex-end;">
+                            <button class="btn btn-accent full-width" id="coup-sub-btn" onclick="saveCoupon()">Create
+                                Coupon</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-panel" style="padding:20px; border-radius:24px;">
+                    <h3>Active Coupons</h3>
+                    <div id="coupon-list"></div>
+                </div>
+            </div>
+            <div id="tab-billing" class="tab-pane">
+                <div class="glass-panel" style="padding:24px; border-radius:24px;">
+                    <h2>App & Billing Config</h2>
+                    <div
+                        style="border:1px solid #ff3b30; background:rgba(255,59,48,0.1); padding:15px; border-radius:12px; margin-bottom:20px;">
+                        <h4 style="margin:0 0 10px 0; color:#ff3b30;">Emergency Controls</h4>
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <div class="toggle-switch" id="tog-maint" onclick="toggleMaint()"
+                                style="width:100%; display:flex; justify-content:space-between; align-items:center;">
+                                <span>🚧 Maintenance Mode</span> <span id="lbl-maint"
+                                    style="font-weight:bold;">OFF</span>
+                            </div>
+                            <div class="toggle-switch" id="tog-open" onclick="toggleOpen()"
+                                style="width:100%; display:flex; justify-content:space-between; align-items:center;">
+                                <span>🟢 Restaurant Open</span> <span id="lbl-open" style="font-weight:bold;">YES</span>
+                            </div>
+                        </div>
+                        <input id="app-announce" class="input-glass"
+                            placeholder="📢 Announcement Banner Text (Empty to hide)" style="margin-top:10px;">
+                    </div>
+                    <div class="form-group"><label class="form-label">Currency Symbol</label><input id="app-currency"
+                            class="input-glass" placeholder="e.g. $, ₹, €" style="width:100px;"></div>
+                    <div class="form-group"><label class="form-label">App Title</label><input id="app-title"
+                            class="input-glass" placeholder="e.g. SnapFood Pro"></div>
+                    <div class="form-group"><label class="form-label">App Logo URL</label><input id="app-logo"
+                            class="input-glass" placeholder="https://..."></div>
+
+                    <h3 style="margin-top:20px; border-top:1px solid rgba(255,255,255,0.1); padding-top:20px;">Invoice
+                        Configuration</h3>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+                        <input id="inv-biz-name" class="input-glass" placeholder="Business Legal Name">
+                        <input id="inv-tax-id" class="input-glass" placeholder="Tax ID / GSTIN">
+                        <input id="inv-phone" class="input-glass" placeholder="Contact Phone">
+                        <input id="inv-footer" class="input-glass" placeholder="Footer Msg (e.g. Thank You!)">
+                        <textarea id="inv-address" class="input-glass full-width" rows="3" style="grid-column:1/-1"
+                            placeholder="Full Business Address"></textarea>
+                    </div>
+
+                    <button class="btn btn-primary" onclick="saveBilling()" style="margin-top:15px;">Save
+                        Configuration</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="gift-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h2>Send Personal Coupon</h2>
+            <input id="g-code" class="input-glass" placeholder="Coupon Code (e.g. JOHN50)" style="margin-bottom:10px">
+            <input id="g-disc" class="input-glass" type="number" placeholder="Discount %" style="margin-bottom:10px">
+            <button class="btn btn-primary full-width" onclick="doSendGift()">Send Coupon</button>
+            <button class="btn btn-glass full-width" style="margin-top:10px;" onclick="closeGift()">Cancel</button>
+        </div>
+    </div>
+    <div id="detail-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h2>Order Details</h2>
+            <div id="det-content"></div><button class="btn btn-glass full-width" style="margin-top:20px;"
+                onclick="document.getElementById('detail-modal').classList.add('hidden')">Close</button>
+        </div>
+    </div>
+    <div id="qr-modal" class="modal-overlay hidden">
+        <div class="modal-box" style="text-align:center;">
+            <h2>QR Generator</h2><input id="qr-table-in" class="input-glass" placeholder="Table No"><button
+                class="btn btn-primary" onclick="generateQR()">Generate</button>
+            <div id="qr-result" style="display:none;margin-top:20px;"><img id="qr-img" width="200"><button
+                    class="btn btn-glass" onclick="printQR()">Print</button></div><button
+                class="btn btn-glass full-width" style="margin-top:20px;"
+                onclick="document.getElementById('qr-modal').classList.add('hidden')">Close</button>
+        </div>
+    </div>
+    <div id="rep-detail-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h2 id="rdm-title">Detail</h2>
+            <div id="rdm-content" style="max-height:60vh; overflow-y:auto; margin:10px 0;"></div>
+            <button class="btn btn-glass full-width"
+                onclick="document.getElementById('rep-detail-modal').classList.add('hidden')">Close</button>
+        </div>
+    </div>
+
+    <script>
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore(); const auth = firebase.auth();
+        let CUR = '$'; let isMaint = false; let isOpen = true;
+        let CACHE = { orders: [], dishes: [], users: [], coupons: [], categories: [] };
+        let editProdId = null; let editCatId = null; let editCoupId = null; let editSlideIdx = null;
+        let selectedUserUid = null;
+        auth.onAuthStateChanged(u => { if (u) { document.getElementById('login-overlay').style.display = 'none'; document.getElementById('app-wrap').classList.remove('hidden'); init(); } });
+        function login() { auth.signInWithEmailAndPassword(document.getElementById('adm-email').value, document.getElementById('adm-pass').value).catch(e => alert(e.message)); }
+        function nav(t) {
+            document.querySelectorAll('.tab-pane').forEach(e => e.classList.remove('active'));
+            document.getElementById('tab-' + t).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            if (t === 'analytics') loadAnalytics('today'); if (t === 'reports') { renderCouponReport(); renderCustomerReport(); }
+        }
+        function init() {
+            db.collection('settings').doc('restaurant').get().then(doc => {
+                if (doc.exists) {
+                    const d = doc.data();
+                    CUR = d.currency || '$'; isMaint = d.maintenanceMode; isOpen = d.isOpen;
+                    updateToggles();
+                    if (document.getElementById('app-currency')) document.getElementById('app-currency').value = d.currency || '$';
+                    if (document.getElementById('app-title')) document.getElementById('app-title').value = d.appTitle || '';
+                    if (document.getElementById('app-announce')) document.getElementById('app-announce').value = d.announcement || '';
+                    if (d.appLogo && document.getElementById('app-logo')) document.getElementById('app-logo').value = d.appLogo;
+
+                    // Dynamic Admin Branding
+                    if (d.appTitle && document.getElementById('admin-brand')) {
+                        document.getElementById('admin-brand').innerHTML = d.appTitle + ' <span style="color:var(--accent-color);">CMS</span>';
+                        document.title = d.appTitle + " Admin";
+                    }
+
+                    // Invoice Fields
+                    if (document.getElementById('inv-biz-name')) document.getElementById('inv-biz-name').value = d.bizName || '';
+                    if (document.getElementById('inv-address')) document.getElementById('inv-address').value = d.bizAddress || '';
+                    if (document.getElementById('inv-phone')) document.getElementById('inv-phone').value = d.bizPhone || '';
+                    if (document.getElementById('inv-tax-id')) document.getElementById('inv-tax-id').value = d.taxId || '';
+                    if (document.getElementById('inv-footer')) document.getElementById('inv-footer').value = d.invFooter || '';
+                }
+            });
+            loadOrders(); loadMenu(); loadCategories(); loadCustomers(); loadCoupons(); loadSlides();
+        }
+        function exportData(c) {
+            let data = CACHE[c];
+            if (c === 'promotions') { db.collection('promotions').doc('home_hero').get().then(d => { if (d.exists) doExport(d.data().slides || [], 'slides.csv'); }); return; }
+            if (c === 'categories') { db.collection('categories').get().then(s => doExport(s.docs.map(d => d.data()), 'categories.csv')); return; }
+            if (!data || !data.length) return alert("No Data"); doExport(data, c + '.csv');
+        }
+        function doExport(arr, name) {
+            if (!arr.length) return alert("Empty");
+            const h = Object.keys(arr[0]); const csv = [h.join(',')];
+            arr.forEach(r => { csv.push(h.map(k => { let v = r[k]; if (Array.isArray(v)) v = v.join('|'); return `"${('' + (v || '')).replace(/"/g, '""')}"`; }).join(',')); });
+            const b = new Blob([csv.join('\n')], { type: 'text/csv' }); const u = URL.createObjectURL(b);
+            const a = document.createElement('a'); a.href = u; a.download = name; a.click();
+        }
+        function downloadTemplate(t) { const h = t === 'product' ? "name,price,category,desc,image" : "name,icon"; const b = new Blob([h]); document.createElement('a').href = URL.createObjectURL(b); }
+
+        function importCSV(el, coll) {
+            const file = el.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const lines = e.target.result.split('\n');
+                const headers = lines[0].split(',').map(h => h.trim());
+                const batch = db.batch();
+                let count = 0;
+
+                for (let i = 1; i < lines.length; i++) {
+                    if (!lines[i].trim()) continue;
+                    // Handle comma in quotes? Simple split for now, robust parser recommended for complex CSVs
+                    const row = lines[i].split(',');
+                    const data = {};
+                    headers.forEach((h, idx) => { data[h] = row[idx]?.replace(/"/g, '').trim() || ''; });
+
+                    // Specific Parsing
+                    if (coll === 'dishes') {
+                        data.price = parseFloat(data.price) || 0;
+                        data.createdAt = new Date();
+                        if (data.name) { batch.set(db.collection('dishes').doc(), data); count++; }
+                    }
+                    else if (coll === 'categories') {
+                        data.createdAt = new Date();
+                        if (data.name) { batch.set(db.collection('categories').doc(), data); count++; }
+                    }
+                    else if (coll === 'users') {
+                        // Users usually need Auth UID, but this imports to 'users' coll for CRM
+                        if (data.name) { batch.set(db.collection('users').doc(), data); count++; }
+                    }
+                }
+                batch.commit().then(() => { alert(`Imported ${count} items!`); loadMenu(); loadCategories(); loadCustomers(); });
+            };
+            reader.readAsText(file);
+            el.value = ''; // Reset
+        }
+        function saveProduct() {
+            const img = document.getElementById('prod-img').value; if (!img) return alert("Img req");
+            const d = { name: document.getElementById('prod-name').value, price: document.getElementById('prod-price').value, category: document.getElementById('prod-cat').value, themeColor: document.getElementById('prod-color').value, desc: document.getElementById('prod-desc').value, image: img, angles: [img, document.getElementById('prod-angle1').value, document.getElementById('prod-angle2').value, document.getElementById('prod-angle3').value, document.getElementById('prod-angle4').value].filter(x => x) };
+            if (editProdId) db.collection('dishes').doc(editProdId).update(d).then(() => { alert("Updated"); resetProdForm(); loadMenu(); });
+            else { d.createdAt = new Date(); db.collection('dishes').add(d).then(() => { alert("Added"); resetProdForm(); loadMenu(); }); }
+        }
+        function saveCategory() {
+            const n = document.getElementById('cat-name-in').value; const i = document.getElementById('cat-icon-in').value; if (!n) return alert("Name req");
+            if (editCatId) db.collection('categories').doc(editCatId).update({ name: n, icon: i }).then(() => { loadCategories(); resetCatForm(); });
+            else db.collection('categories').add({ name: n, icon: i, createdAt: new Date() }).then(() => { loadCategories(); resetCatForm(); });
+        }
+        function saveCoupon() {
+            const c = document.getElementById('cup-code').value.toUpperCase(); if (!c) return;
+            const d = { code: c, discount: Number(document.getElementById('cup-percent').value), maxUses: Number(document.getElementById('cup-limit').value), active: true };
+            if (editCoupId) db.collection('coupons').doc(editCoupId).update(d).then(() => { alert("Upd"); resetCoupForm(); loadCoupons(); });
+            else { d.usageCount = 0; db.collection('coupons').add(d).then(() => { alert("Add"); resetCoupForm(); loadCoupons(); }); }
+        }
+        /* --- ANALYTICS & REPORTS LOGIC (Added Phase 24) --- */
+        function loadAnalytics(range, btn) {
+            if (btn) { document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+            const now = new Date(); let start = new Date(0);
+            if (range === 'today') start = new Date(now.setHours(0, 0, 0, 0));
+            if (range === 'month') start = new Date(now.getFullYear(), now.getMonth(), 1);
+            if (range === 'year') start = new Date(now.getFullYear(), 0, 1);
+
+            const filtered = CACHE.orders.filter(o => o.createdAt && new Date(o.createdAt.seconds * 1000) >= start);
+            const totalSales = filtered.reduce((acc, o) => acc + (Number(o.finalTotal) || 0), 0);
+            document.getElementById('an-sales').innerText = CUR + totalSales.toFixed(2);
+            document.getElementById('an-orders').innerText = filtered.length;
+            document.getElementById('an-aov').innerText = CUR + (filtered.length ? (totalSales / filtered.length) : 0).toFixed(2);
+
+            const daily = {}; const prods = {};
+            filtered.forEach(o => {
+                const d = new Date(o.createdAt.seconds * 1000).toLocaleDateString();
+                daily[d] = (daily[d] || 0) + (Number(o.finalTotal) || 0);
+                prods[o.dishName] = (prods[o.dishName] || 0) + 1;
+            });
+
+            let h1 = '<table class="detail-table"><tr><th>Date</th><th style="text-align:right">Sales</th></tr>';
+            Object.entries(daily).slice(-7).forEach(([d, v]) => h1 += `<tr><td>${d}</td><td style="text-align:right">${CUR}${v.toFixed(2)}</td></tr>`);
+            document.getElementById('an-sales-break').innerHTML = h1 + '</table>';
+
+            let h2 = '<table class="detail-table"><tr><th>Product</th><th style="text-align:right">Qty</th></tr>';
+            Object.entries(prods).sort((a, b) => b[1] - a[1]).slice(0, 5).forEach(([p, q]) => h2 += `<tr><td>${p}</td><td style="text-align:right">${q}</td></tr>`);
+            document.getElementById('an-top-prod').innerHTML = h2 + '</table>';
+        }
+
+        function renderCouponReport() {
+            const uses = {};
+            CACHE.orders.forEach(o => {
+                if (o.couponCode) {
+                    if (!uses[o.couponCode]) uses[o.couponCode] = [];
+                    uses[o.couponCode].push(o.customerName);
+                }
+            });
+            let h = '<div style="display:grid;gap:10px">';
+            Object.keys(uses).forEach(c => {
+                h += `<div class="list-row" onclick="showPopupList('${c} Users', '${uses[c].join('<br>')}')" style="cursor:pointer"><span>${c}</span> <span>${uses[c].length} Uses</span></div>`;
+            });
+            document.getElementById('rep-coupons').innerHTML = h + '</div>';
+        }
+        function renderCustomerReport() {
+            const map = {};
+            CACHE.orders.forEach(o => {
+                const uid = o.userId || 'Guest';
+                if (!map[uid]) map[uid] = { name: o.customerName, total: 0, items: [] };
+                map[uid].total += (Number(o.finalTotal) || 0);
+                map[uid].items.push(`${o.dishName} (${CUR}${o.finalTotal})`);
+            });
+            CACHE.custReport = Object.values(map);
+            filterCustHist('');
+        }
+        function filterCustHist(txt) {
+            if (!CACHE.custReport) return;
+            const f = CACHE.custReport.filter(c => c.name.toLowerCase().includes(txt.toLowerCase()));
+            let h = '<div style="display:grid;gap:10px">';
+            f.slice(0, 20).forEach(c => {
+                const itemsStr = encodeURIComponent(c.items.join('<br>'));
+                h += `<div class="list-row" onclick="showPopupList('${c.name} History', decodeURIComponent('${itemsStr}'))" style="cursor:pointer"><span>${c.name}</span> <span>${CUR}${c.total.toFixed(2)}</span></div>`;
+            });
+            document.getElementById('rep-customers').innerHTML = h + '</div>';
+        }
+        function showPopupList(title, content) {
+            document.getElementById('rdm-title').innerText = title;
+            document.getElementById('rdm-content').innerHTML = content || 'No Data';
+            document.getElementById('rep-detail-modal').classList.remove('hidden');
+        }
+        function saveSlide() {
+            const s = { title: document.getElementById('slide-title').value, imageUrl: document.getElementById('slide-img').value, btnText: document.getElementById('slide-btn').value, linkId: '' };
+            const typedName = document.getElementById('slide-link-in').value; const found = CACHE.dishes.find(d => d.name === typedName); s.linkId = found ? found.id : '';
+            if (!s.title || !s.imageUrl) return alert("Title/Image req");
+            db.collection('promotions').doc('home_hero').get().then(doc => { let slides = (doc.exists && doc.data().slides) ? doc.data().slides : []; if (editSlideIdx !== null) slides[editSlideIdx] = s; else slides.push(s); db.collection('promotions').doc('home_hero').set({ slides }, { merge: true }).then(() => { alert("Saved"); resetSlideForm(); loadSlides(); }); });
+        }
+        function editSlide(i, enc) { const s = JSON.parse(decodeURIComponent(enc)); editSlideIdx = i; document.getElementById('slide-title').value = s.title; document.getElementById('slide-img').value = s.imageUrl; document.getElementById('slide-btn').value = s.btnText; const dName = CACHE.dishes.find(d => d.id === s.linkId)?.name || ''; document.getElementById('slide-link-in').value = dName; document.getElementById('slide-sub-btn').innerText = "Update"; document.getElementById('slide-cancel-btn').classList.remove('hidden'); }
+
+        function loadOrders() {
+            db.collection('orders').orderBy('createdAt', 'desc').limit(50).onSnapshot(s => {
+                const changes = s.docChanges();
+                changes.forEach(c => {
+                    if (c.type === 'added' && !document.hidden) {
+                        // Play Sound
+                        document.getElementById('notif-sound').play().catch(e => { });
+                        // Browser Notification - Only if already granted
+                        if (Notification.permission === "granted") {
+                            try { new Notification("New Order!", { body: `Table ${c.doc.data().tableNo}` }); } catch (e) { }
+                        }
+                    }
+                });
+
+                CACHE.orders = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                document.getElementById('orders-list').innerHTML = CACHE.orders.map(o => {
+                    const st = o.status || 'pending';
+                    const colors = { pending: '#ff3b30', cooking: '#ff9f1c', ready: '#30d158', completed: '#888' };
+                    return `
+                    <div class="list-row" style="border-left: 4px solid ${colors[st] || '#fff'}">
+                        <div><b>${o.tableNo} • ${o.dishName}</b><br><small>${o.customerName}</small> <span style="font-size:0.8rem;opacity:0.6">${new Date(o.createdAt?.seconds * 1000).toLocaleTimeString()}</span></div>
+                        <select onchange="updateStatus('${o.id}', this.value)" class="input-glass" style="width:auto; margin:0; padding:5px; font-size:0.9rem; background:${colors[st] || '#333'}; color:#000; font-weight:bold;">
+                            <option value="pending" ${st === 'pending' ? 'selected' : ''}>Pending</option>
+                            <option value="cooking" ${st === 'cooking' ? 'selected' : ''}>Cooking</option>
+                            <option value="ready" ${st === 'ready' ? 'selected' : ''}>Ready</option>
+                            <option value="completed" ${st === 'completed' ? 'selected' : ''}>Completed</option>
+                        </select>
+                    </div>`;
+                }).join('');
+
+                if (document.getElementById('tab-analytics').classList.contains('active')) loadAnalytics('today');
+                if (document.getElementById('tab-reports').classList.contains('active')) { renderCouponReport(); renderCustomerReport(); }
+            });
+            // req notification perm
+            if (Notification.permission !== "granted") Notification.requestPermission();
+        }
+
+        function updateStatus(id, st) {
+            db.collection('orders').doc(id).update({ status: st });
+            if (st === 'ready') document.getElementById('notif-sound').play().catch(e => { });
+        }
+
+        function loadMenu() { db.collection('dishes').get().then(s => { CACHE.dishes = s.docs.map(d => ({ id: d.id, ...d.data() })); renderMenu(CACHE.dishes); }); }
+        function renderMenu(items) {
+            const list = document.getElementById('menu-list');
+            const dl = document.getElementById('slide-dish-list'); dl.innerHTML = '';
+            list.innerHTML = '';
+            items.forEach(d => {
+                const enc = encodeURIComponent(JSON.stringify(d));
+                list.innerHTML += `
+                <div class="list-row">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <div style="width:20px;height:20px;border-radius:50%;background:${d.themeColor || '#fff'}"></div>
+                        <span>${d.name} (${CUR}${d.price})</span>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-glass" onclick="editDish('${enc}')">✏️</button>
+                        <button class="btn btn-glass" onclick="db.collection('dishes').doc('${d.id}').delete().then(loadMenu)">Del</button>
+                    </div>
+                </div>`;
+                dl.innerHTML += `<option value="${d.name}">`;
+            });
+        }
+        function loadCategories() {
+            db.collection('categories').get().then(s => {
+                const h = document.getElementById('cat-list-adm');
+                const dl = document.getElementById('cats-list');
+                h.innerHTML = ''; dl.innerHTML = '';
+                s.forEach(d => {
+                    const dat = d.data();
+                    const id = d.id;
+                    const enc = encodeURIComponent(JSON.stringify({ id: id, ...dat }));
+
+                    const iconDisplay = (dat.icon && dat.icon.startsWith('http'))
+                        ? `<img src="${dat.icon}" style="width:24px;height:24px;border-radius:4px;object-fit:cover;">`
+                        : `<span style="font-size:1.2rem">${dat.icon || '📁'}</span>`;
+
+                    h.innerHTML += `
+                    <div class="list-row">
+                        <div style="display:flex;align-items:center;gap:10px;">${iconDisplay} <span>${dat.name}</span></div>
+                        <div style="display:flex;gap:10px;">
+                            <button class="btn btn-glass" onclick="editCat('${enc}')">✏️</button>
+                            <button class="btn btn-glass" onclick="if(confirm('Delete?')) db.collection('categories').doc('${id}').delete().then(loadCategories)">🗑️</button>
+                        </div>
+                    </div>`;
+                    dl.innerHTML += `<option value="${dat.name}">`;
+                });
+            });
+        }
+
+        function editCat(enc) {
+            const c = JSON.parse(decodeURIComponent(enc));
+            editCatId = c.id;
+            document.getElementById('cat-name-in').value = c.name;
+            document.getElementById('cat-icon-in').value = c.icon || '';
+            document.getElementById('cat-preview').src = c.icon || ''; // Show Preview
+            document.getElementById('cat-preview').style.display = c.icon && c.icon.startsWith('http') ? 'block' : 'none';
+            document.getElementById('cat-sub-btn').innerText = "Update";
+            document.getElementById('cat-cancel-edit').classList.remove('hidden');
+        }
+        function resetCatForm() { editCatId = null; document.getElementById('cat-name-in').value = ''; document.getElementById('cat-icon-in').value = ''; document.getElementById('cat-sub-btn').innerText = "Add Category"; document.getElementById('cat-cancel-edit').classList.add('hidden'); }
+
+        function loadCoupons() {
+            db.collection('coupons').get().then(s => {
+                const l = document.getElementById('coupon-list'); l.innerHTML = '';
+                s.forEach(d => {
+                    const c = d.data();
+                    l.innerHTML += `
+                    <div class="list-row">
+                        <span><b>${c.code}</b> (${c.discount}%)</span>
+                        <div style="display:flex;gap:10px;">
+                             <button class="btn btn-glass" onclick="editCoupon('${d.id}','${encodeURIComponent(JSON.stringify(c))}')">Edit</button>
+                             <button class="btn btn-glass" onclick="if(confirm('Delete?')) db.collection('coupons').doc('${d.id}').delete().then(loadCoupons)">Del</button>
+                        </div>
+                    </div>`;
+                });
+            });
+        }
+
+        function loadSlides() {
+            db.collection('promotions').doc('home_hero').get().then(d => {
+                const l = document.getElementById('slides-list'); l.innerHTML = '';
+                if (d.exists) {
+                    const slides = d.data().slides || [];
+                    slides.forEach((s, i) => {
+                        l.innerHTML += `
+                        <div class="list-row">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <img src="${s.imageUrl}" style="width:40px;height:40px;object-fit:cover;border-radius:5px;">
+                                <span>${s.title}</span>
+                            </div>
+                            <div style="display:flex;gap:10px;">
+                                <button class="btn btn-glass" onclick="editSlide(${i},'${encodeURIComponent(JSON.stringify(s))}')">Edit</button>
+                                <button class="btn btn-glass" onclick="deleteSlide(${i})">Del</button>
+                            </div>
+                        </div>`;
+                    });
+                }
+            });
+        }
+
+        function deleteSlide(idx) {
+            if (!confirm("Delete Slide?")) return;
+            db.collection('promotions').doc('home_hero').get().then(d => {
+                if (!d.exists) return;
+                const slides = d.data().slides || [];
+                slides.splice(idx, 1);
+                db.collection('promotions').doc('home_hero').update({ slides: slides }).then(loadSlides);
+            });
+        }
+
+        function loadCustomers(q) {
+            db.collection('users').get().then(s => {
+                const l = document.getElementById('user-list'); l.innerHTML = '';
+                let items = s.docs.map(d => ({ id: d.id, ...d.data() }));
+                if (q) items = items.filter(u => (u.name && u.name.toLowerCase().includes(q.toLowerCase())) || (u.phone && u.phone.includes(q)));
+
+                items.slice(0, 50).forEach(u => {
+                    const spend = u.totalSpend ? `${CUR}${u.totalSpend}` : (u.phone || 'No Info');
+                    l.innerHTML += `<div class="list-row" onclick="openGiftModal('${u.id}')" style="cursor:pointer">
+                        <div><b>${u.name || 'User'}</b><br><small>${u.email || u.phone || 'Guest'}</small></div>
+                        <span>${spend} 🎁</span>
+                    </div>`;
+                });
+            });
+        }
+
+        function openGiftModal(uid) { selectedUserUid = uid; document.getElementById('gift-modal').classList.remove('hidden'); }
+        function closeGift() { selectedUserUid = null; document.getElementById('gift-modal').classList.add('hidden'); }
+        function doSendGift() {
+            if (!selectedUserUid) return;
+            const c = document.getElementById('g-code').value.toUpperCase();
+            const d = Number(document.getElementById('g-disc').value);
+            if (!c || !d) return alert("Enter Code & Discount");
+
+            const coupon = { code: c, discount: d, createdAt: new Date() };
+            db.collection('users').doc(selectedUserUid).update({
+                myCoupons: firebase.firestore.FieldValue.arrayUnion(coupon)
+            }).then(() => { alert("Coupon Sent!"); closeGift(); });
+        }
+        function editDish(enc) { const d = JSON.parse(decodeURIComponent(enc)); editProdId = d.id; document.getElementById('prod-name').value = d.name; document.getElementById('prod-price').value = d.price; document.getElementById('prod-cat').value = d.category; document.getElementById('prod-img').value = d.image; document.getElementById('prod-sub-btn').innerText = "Update"; document.getElementById('prod-cancel-btn').classList.remove('hidden'); }
+        function resetProdForm() { editProdId = null; document.getElementById('prod-name').value = ''; document.getElementById('prod-sub-btn').innerText = "Add"; document.getElementById('prod-cancel-btn').classList.add('hidden'); }
+        function editCoupon(id, enc) { const c = JSON.parse(decodeURIComponent(enc)); editCoupId = id; document.getElementById('cup-code').value = c.code; document.getElementById('cup-limit').value = c.maxUses; document.getElementById('cup-percent').value = c.discount; document.getElementById('coup-sub-btn').innerText = "Update"; document.getElementById('coup-cancel-btn').classList.remove('hidden'); }
+        function resetCoupForm() { editCoupId = null; document.getElementById('cup-code').value = ''; document.getElementById('coup-sub-btn').innerText = "Create"; document.getElementById('coup-cancel-btn').classList.add('hidden'); }
+        function resetSlideForm() {
+            editSlideIdx = null;
+            document.getElementById('slide-title').value = '';
+            document.getElementById('slide-img').value = '';
+            document.getElementById('slide-preview').src = '';
+            document.getElementById('slide-link-in').value = '';
+            document.getElementById('slide-sub-btn').innerText = "Add";
+            document.getElementById('slide-cancel-btn').classList.add('hidden');
+        }
+        function toggleMaint() { isMaint = !isMaint; updateToggles(); } function toggleOpen() { isOpen = !isOpen; updateToggles(); }
+        function updateToggles() { document.getElementById('lbl-maint').innerText = isMaint ? 'ON' : 'OFF'; document.getElementById('lbl-open').innerText = isOpen ? 'YES' : 'NO'; }
+        function saveBilling() {
+            db.collection('settings').doc('restaurant').set({
+                maintenanceMode: isMaint,
+                isOpen: isOpen,
+                currency: document.getElementById('app-currency').value,
+                appTitle: document.getElementById('app-title').value,
+                announcement: document.getElementById('app-announce').value,
+                appLogo: document.getElementById('app-logo').value,
+                // Invoice Fields
+                bizName: document.getElementById('inv-biz-name').value,
+                bizAddress: document.getElementById('inv-address').value,
+                bizPhone: document.getElementById('inv-phone').value,
+                taxId: document.getElementById('inv-tax-id').value,
+                invFooter: document.getElementById('inv-footer').value
+            }, { merge: true }).then(() => alert("Saved"));
+        }
+        function openQRTool() { document.getElementById('qr-modal').classList.remove('hidden'); }
+        function generateQR() { document.getElementById('qr-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=Table${document.getElementById('qr-table-in').value}`; document.getElementById('qr-result').style.display = 'block'; }
+        function printQR() { const w = window.open(''); w.document.write(`<img src="${document.getElementById('qr-img').src}">`); w.print(); }
+    </script>
+</body>
+
+</html>

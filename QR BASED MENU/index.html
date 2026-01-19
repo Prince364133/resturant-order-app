@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WebAR Experience</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="firebase-config.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #camera-feed {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -100;
+            filter: brightness(0.8) blur(var(--blur-amt, 10px));
+            transform: scale(1.1);
+            transition: filter 0.2s;
+        }
+
+        /* 3D Carousel Container */
+        .carousel-stage {
+            position: fixed;
+            top: -10%;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            perspective: 1000px;
+            overflow: hidden;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .carousel-spinner {
+            position: relative;
+            width: 350px;
+            height: 350px;
+            transform-style: preserve-3d;
+            transition: transform 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+        }
+
+        .carousel-item {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 350px;
+            height: 350px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backface-visibility: hidden;
+            transition: 0.5s;
+        }
+
+        .dish-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.6));
+            transition: transform 0.5s;
+        }
+
+        /* UI Overlay */
+        .ui-safe-area {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .top-bar {
+            padding: 20px;
+            padding-top: max(20px, env(safe-area-inset-top));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-box {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-img {
+            height: 100%;
+            width: auto;
+            max-width: 120px;
+            object-fit: contain;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+        }
+
+        .auth-pill {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+        }
+
+        .back-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(20px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .bottom-info {
+            padding: 30px 24px;
+            padding-bottom: max(30px, env(safe-area-inset-bottom));
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, transparent 100%);
+            pointer-events: auto;
+        }
+
+        .info-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(30px);
+            border-radius: 32px;
+            padding: 24px;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            transform: translateY(0);
+            transition: 0.3s;
+        }
+
+        .dish-title {
+            font-size: 2rem;
+            font-weight: 800;
+            margin: 0;
+            line-height: 1.1;
+        }
+
+        .dish-price {
+            font-size: 1.5rem;
+            color: var(--accent-color);
+            font-weight: 700;
+            margin-top: 5px;
+        }
+
+        .order-btn {
+            margin-top: 20px;
+            width: 100%;
+            height: 56px;
+            background: var(--accent-color);
+            color: #000;
+            border: none;
+            border-radius: 16px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(255, 159, 28, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        /* Order Modal */
+        #order-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px);
+            z-index: 100;
+            display: flex;
+            align-items: flex-end;
+            pointer-events: auto;
+        }
+
+        .modal-sheet {
+            background: #1A1A1A;
+            width: 100%;
+            border-top-left-radius: 32px;
+            border-top-right-radius: 32px;
+            padding: 32px;
+            padding-bottom: 50px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .coupon-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+
+        .calc-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+
+        .calc-total {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .feedback {
+            font-size: 0.8rem;
+            height: 1.2em;
+            margin-bottom: 15px;
+        }
+
+        /* Desc Modal */
+        #desc-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .desc-box {
+            background: #222;
+            padding: 30px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 500px;
+            width: 100%;
+            color: #eee;
+        }
+    </style>
+</head>
+
+<body>
+    <video id="camera-feed" autoplay playsinline muted></video>
+
+    <!-- 3D Carousel -->
+    <div class="carousel-stage" id="stage">
+        <div class="carousel-spinner" id="spinner">
+            <!-- Items injected here -->
+        </div>
+    </div>
+
+    <!-- UI Overlay -->
+    <div class="ui-safe-area">
+        <div class="top-bar">
+            <div class="logo-box">
+                <div class="back-btn" onclick="location.href='home.html'" style="margin-right:10px;">←</div>
+                <img id="app-logo-img" class="logo-img" src="logo.png" style="display:none"
+                    onload="this.style.display='block'">
+            </div>
+            <div id="auth-btn" class="auth-pill"
+                onclick="document.getElementById('auth-modal').classList.remove('hidden')">Login</div>
+        </div>
+
+        <!-- Controls -->
+        <div
+            style="position:absolute; top:50%; width:100%; display:flex; justify-content:space-between; padding:0 20px; transform:translateY(-50%); pointer-events:none;">
+            <div onclick="rotateCarousel(-1)"
+                style="pointer-events:auto; width:50px; height:50px; background:rgba(255,255,255,0.1); backdrop-filter:blur(10px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-size:1.5rem; cursor:pointer;">
+                ❮</div>
+            <div onclick="rotateCarousel(1)"
+                style="pointer-events:auto; width:50px; height:50px; background:rgba(255,255,255,0.1); backdrop-filter:blur(10px); border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-size:1.5rem; cursor:pointer;">
+                ❯</div>
+        </div>
+
+        <div class="bottom-info">
+            <div class="info-card" id="info-card">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div>
+                        <h1 class="dish-title" id="d-name">Loading...</h1>
+                        <div class="dish-price" id="d-price">--</div>
+                    </div>
+                </div>
+                <p style="opacity:0.7; margin:10px 0 20px 0; font-size:0.95rem; line-height:1.4;" id="d-desc">Loading
+                    dish details...</p>
+                <div class="order-btn" onclick="openOrder()">Order Now <span
+                        style="background:rgba(0,0,0,0.2); width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.8rem;">➜</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Modal -->
+    <div id="order-modal" class="hidden">
+        <div class="modal-sheet">
+            <div
+                style="width:40px; height:4px; background:rgba(255,255,255,0.2); border-radius:2px; margin:0 auto 20px;">
+            </div>
+            <h2 style="margin:0 0 20px 0; text-align:center;">Confirm Order</h2>
+
+            <input id="in-table" class="input-glass" placeholder="Table Number (e.g. 5)" type="number"
+                style="margin-bottom:15px;">
+            <input id="in-phone" class="input-glass" placeholder="Your Phone Number" type="tel"
+                style="margin-bottom:15px;">
+
+            <label style="display:block; font-size:0.9rem; color:#aaa; margin-bottom:5px;">Promo Code</label>
+            <div class="coupon-row">
+                <input id="in-code" class="input-glass" placeholder="Enter Code"
+                    style="margin-bottom:0; text-transform:uppercase;">
+                <button class="btn btn-glass" onclick="verifyCoupon()">Apply</button>
+            </div>
+            <div id="cpn-msg" class="feedback"></div>
+
+            <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:16px; margin-bottom:20px;">
+                <div class="calc-row"><span>Subtotal</span><span id="c-sub">--</span></div>
+                <div class="calc-row" style="color:#30D158;"><span>Discount</span><span id="c-disc">--</span></div>
+                <div class="calc-total"><span>Total</span><span id="c-total">--</span></div>
+            </div>
+
+            <button class="btn btn-primary" style="width:100%" onclick="placeOrder()">Waiters, Bring it! 🍛</button>
+            <div style="text-align:center; margin-top:15px; opacity:0.5;" onclick="closeOrder()">Cancel</div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div id="profile-modal" class="hidden">
+        <div class="desc-box">
+            <h2 style="margin-top:0">My Profile</h2>
+            <p style="color:#aaa;font-size:0.9rem" id="prof-email"></p>
+            <h3 style="margin-top:20px;border-top:1px solid #333;padding-top:15px;">My Exclusive Coupons</h3>
+            <div id="prof-coupons" style="margin-top:10px; display:grid; gap:10px;">Loading...</div>
+            <button class="btn btn-glass full-width" style="margin-top:20px;"
+                onclick="document.getElementById('profile-modal').classList.add('hidden')">Close</button>
+            <button class="btn btn-glass full-width" style="margin-top:10px;color:#FF3B30"
+                onclick="auth.signOut().then(()=>window.location.reload())">Logout</button>
+        </div>
+    </div>
+
+    <div id="desc-modal" class="hidden">
+        <div class="desc-box">
+            <h2 id="full-title" style="margin-top:0"></h2>
+            <p id="full-desc" style="opacity:0.8; line-height:1.6;"></p>
+            <button class="btn btn-glass full-width"
+                onclick="document.getElementById('desc-modal').classList.add('hidden')">Close</button>
+        </div>
+    </div>
+
+    <script>
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        const urlParams = new URLSearchParams(window.location.search);
+        const dishId = urlParams.get('id');
+
+        let dishData = null;
+        let CUR = '$';
+        let currentPrice = 0;
+        let finalPrice = 0;
+        let appliedDiscount = 0;
+        let appliedCode = "";
+        let appliedCouponId = null;
+
+        // Blur Pref
+        const blurPref = localStorage.getItem('blurPref') || '10';
+        document.documentElement.style.setProperty('--blur-amt', blurPref + 'px');
+
+        // Carousel State
+        let angle = 0;
+        let startX = 0;
+        let isDrag = false;
+        const spinner = document.getElementById('spinner');
+
+        window.onload = () => {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }).then(s => {
+                document.getElementById('camera-feed').srcObject = s;
+            });
+            function init() {
+                // Fetch Settings for Logo & Title
+                db.collection('settings').doc('restaurant').get().then(doc => {
+                    if (doc.exists) {
+                        const d = doc.data();
+                        CUR = d.currency || '$';
+                        if (d.appLogo) document.getElementById('app-logo-img').src = d.appLogo;
+                        if (d.appTitle) document.title = d.appTitle;
+                    }
+                });
+                // Update Auth UI logic
+                auth.onAuthStateChanged(u => {
+                    if (u) {
+                        document.getElementById('auth-btn').innerText = "My Profile";
+                        document.getElementById('auth-btn').onclick = showProfile;
+                    } else {
+                        document.getElementById('auth-btn').innerText = "Login / Signup";
+                        document.getElementById('auth-btn').onclick = () => document.getElementById('auth-modal').classList.remove('hidden');
+                    }
+                });
+
+                loadDish();
+            }
+            init();
+
+            // Carousel Touch
+            document.getElementById('stage').addEventListener('touchstart', e => { isDrag = true; startX = e.touches[0].clientX; });
+            document.getElementById('stage').addEventListener('touchmove', e => {
+                if (!isDrag) return;
+                const dx = e.touches[0].clientX - startX;
+                spinner.style.transform = `rotateY(${angle + dx * 0.5}deg)`;
+            });
+            document.getElementById('stage').addEventListener('touchend', e => {
+                isDrag = false;
+                const dx = e.changedTouches[0].clientX - startX;
+                angle += dx * 0.5;
+                // Snap
+                const snap = Math.round(angle / 72) * 72;
+                angle = snap;
+                spinner.style.transform = `rotateY(${angle}deg)`;
+            });
+        }
+
+        function rotateCarousel(dir) {
+            angle += dir * -72;
+            spinner.style.transform = `rotateY(${angle}deg)`;
+        }
+
+        function loadDish() {
+            db.collection('dishes').doc(dishId).get().then(doc => {
+                if (!doc.exists) return alert("Dish not found");
+                dishData = doc.data();
+                currentPrice = parseFloat(dishData.price);
+                finalPrice = currentPrice;
+
+                // Truncate Title (Max 4 words or 35 chars)
+                let name = dishData.name;
+                const words = name.split(' ');
+                if (words.length > 4) name = words.slice(0, 4).join(' ') + '...';
+                else if (name.length > 35) name = name.substring(0, 32) + '...';
+                document.getElementById('d-name').innerText = name;
+
+                // Truncate Description (Max 60 chars approx for layout)
+                const fullDesc = dishData.desc || 'A delicious choice.';
+                let shortDesc = fullDesc;
+                if (shortDesc.length > 70) {
+                    shortDesc = shortDesc.substring(0, 70) + '... ';
+                    document.getElementById('d-desc').innerHTML = `${shortDesc} <span style="color:var(--accent-color); font-weight:bold; cursor:pointer;" onclick="showFullDesc()">Read More</span>`;
+                } else {
+                    document.getElementById('d-desc').innerText = shortDesc;
+                }
+
+                document.getElementById('d-price').innerText = CUR + dishData.price;
+
+                if (dishData.themeColor) {
+                    document.documentElement.style.setProperty('--accent-color', dishData.themeColor);
+                    document.querySelector('.dish-price').style.color = dishData.themeColor;
+                    document.querySelector('.order-btn').style.backgroundColor = dishData.themeColor;
+                    document.getElementById('info-card').style.borderColor = dishData.themeColor;
+                }
+
+                // Build Carousel (5 items: 1 Real + 4 Clones/Angles)
+                let imgs = [dishData.image];
+                if (dishData.angles && dishData.angles.length) imgs = dishData.angles;
+                // Pad to 5
+                while (imgs.length < 5) imgs.push(dishData.image);
+
+                spinner.innerHTML = '';
+                imgs.slice(0, 5).forEach((url, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'carousel-item';
+                    div.style.transform = `rotateY(${i * 72}deg) translateZ(300px)`;
+                    div.innerHTML = `<img src="${url}" class="dish-img">`;
+                    spinner.appendChild(div);
+                });
+            });
+        }
+
+        function showFullDesc() {
+            document.getElementById('full-title').innerText = dishData.name;
+            document.getElementById('full-desc').innerText = dishData.desc || 'No description.';
+            document.getElementById('desc-modal').classList.remove('hidden');
+        }
+
+        function showProfile() {
+            if (!auth.currentUser) return;
+            document.getElementById('profile-modal').classList.remove('hidden');
+            document.getElementById('prof-email').innerText = auth.currentUser.email || auth.currentUser.phoneNumber;
+
+            db.collection('users').doc(auth.currentUser.uid).get().then(doc => {
+                const d = doc.data();
+                const div = document.getElementById('prof-coupons');
+                div.innerHTML = ''; // Clear previous content
+                if (d && d.myCoupons && d.myCoupons.length) {
+                    d.myCoupons.forEach(c => {
+                        div.innerHTML += `<div style="background:rgba(255,255,255,0.1);padding:10px;border-radius:10px;border:1px dashed var(--accent-color);">
+                            <div style="font-weight:bold;color:var(--accent-color)">${c.code}</div>
+                            <div style="font-size:0.8rem">${c.discount}% Discount</div>
+                         </div>`;
+                    });
+                } else {
+                    div.innerHTML = '<div style="color:#aaa;font-style:italic">No active coupons. Ask the staff!</div>';
+                }
+            });
+        }
+
+        function loadHistory(uid) {
+            db.collection('orders').where('userId', '==', uid).orderBy('createdAt', 'desc').limit(5).onSnapshot(snap => {
+                const list = document.getElementById('order-list');
+                list.innerHTML = '';
+                if (snap.empty) { list.innerHTML = '<div style="opacity:0.5;text-align:center">No past orders</div>'; return; }
+
+                snap.forEach(doc => {
+                    const o = doc.data();
+                    const color = o.status === 'Completed' ? '#30D158' : (o.status === 'Ready' ? '#0A84FF' : '#FF9F1C');
+                    list.innerHTML += `<div style="background:rgba(255,255,255,0.05); border-radius:12px; padding:15px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <span style="font-weight:700">#${doc.id.substr(0, 5).toUpperCase()}</span>
+                            <span style="color:${color}">${o.status}</span>
+                        </div>
+                        <div style="font-size:0.8rem; opacity:0.7">${new Date(o.createdAt.seconds * 1000).toLocaleString()}</div>
+                        <div style="margin-top:5px; font-weight:700">${CUR}${o.finalTotal.toFixed(2)}</div>
+                        <button class="btn btn-glass full-width" style="margin-top:10px; font-size:0.8rem;" onclick="downloadInvoice('${doc.id}')">📄 Download Invoice</button>
+                    </div>`;
+                });
+            });
+        }
+
+        async function downloadInvoice(oid) {
+            const order = (await db.collection('orders').doc(oid).get()).data();
+            if (!order) return alert("Order not found");
+
+            const el = document.createElement('div');
+            el.style.cssText = "padding:20px; background:white; color:black; font-family:sans-serif; width:100%; max-width:500px; margin:0 auto;";
+
+            // Assuming order.items is an array of { qty, name, price }
+            let listHtml = `
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:10px 0;">${order.dishName}</td>
+                    <td style="padding:10px 0; text-align:right;">${CUR}${order.price.toFixed(2)}</td>
+                </tr>
+            `;
+            // If there were multiple items in an order, you'd iterate order.items.map(...)
+            // For this specific context (single dish order), we use dishName and price directly.
+
+            el.innerHTML = `
+                <div style="text-align:center; margin-bottom:20px;">
+                    <h2 style="margin:0;">INVOICE</h2>
+                    <p style="margin:5px 0; color:#555;">Order #${oid.substr(0, 8).toUpperCase()}</p>
+                    <p style="font-size:0.8rem; color:#777;">${new Date(order.createdAt.seconds * 1000).toLocaleString()}</p>
+                </div>
+                <table style="width:100%; border-collapse:collapse; margin-bottom:20px;">
+                    <thead><tr style="border-bottom:2px solid #000; font-weight:bold;"><td style="padding:5px 0;">Item</td><td style="text-align:right; padding:5px 0;">Price</td></tr></thead>
+                    <tbody>${listHtml}</tbody>
+                </table>
+                <div style="text-align:right; font-weight:bold; font-size:1.2rem; border-top:2px solid #000; padding-top:10px;">
+                    Total: ${CUR}${order.finalTotal.toFixed(2)}
+                </div>
+            `;
+
+            html2pdf().from(el).save(`Invoice_${oid}.pdf`);
+        }
+
+
+        /* ORDER LOGIC */
+        function openOrder() {
+            if (!auth.currentUser) return alert("Please Login First");
+
+            // Reset Calc
+            appliedDiscount = 0; appliedCode = ""; appliedCouponId = null;
+            document.getElementById('in-code').value = "";
+            document.getElementById('cpn-msg').innerText = "";
+            updateCalc();
+
+            // Auto-fill Phone
+            db.collection('users').doc(auth.currentUser.uid).get().then(doc => {
+                if (doc.exists && doc.data().phone) document.getElementById('in-phone').value = doc.data().phone;
+            });
+
+            document.getElementById('order-modal').classList.remove('hidden');
+        }
+        function closeOrder() { document.getElementById('order-modal').classList.add('hidden'); }
+
+        function updateCalc() {
+            finalPrice = currentPrice * (1 - appliedDiscount / 100);
+            document.getElementById('c-sub').innerText = CUR + currentPrice.toFixed(2);
+            document.getElementById('c-disc').innerText = appliedDiscount > 0 ? `-${appliedDiscount}% (${CUR}${(currentPrice - finalPrice).toFixed(2)})` : '--';
+            document.getElementById('c-total').innerText = CUR + finalPrice.toFixed(2);
+        }
+
+        function verifyCoupon() {
+            const code = document.getElementById('in-code').value.toUpperCase();
+            if (!code) return;
+            const msg = document.getElementById('cpn-msg');
+            msg.innerText = "Checking..."; msg.style.color = "#aaa";
+
+            db.collection('coupons').where('code', '==', code).where('active', '==', true).get().then(snap => {
+                if (snap.empty) {
+                    // Also check user's personal coupons
+                    checkUserCoupon(code);
+                } else {
+                    const cpn = snap.docs[0].data();
+                    validateCoupon(cpn, snap.docs[0].id);
+                }
+            });
+        }
+
+        function checkUserCoupon(code) {
+            const msg = document.getElementById('cpn-msg');
+            db.collection('users').doc(auth.currentUser.uid).get().then(doc => {
+                let found = null;
+                if (doc.exists && doc.data().myCoupons) {
+                    found = doc.data().myCoupons.find(x => x.code === code);
+                }
+                if (found) {
+                    // Personal coupons can be one-time use logic here if needed, but for now allow
+                    appliedDiscount = found.discount; appliedCode = code; appliedCouponId = "personal";
+                    msg.innerText = `Success! ${found.discount}% Off (Gift)`; msg.style.color = "#30D158";
+                    updateCalc();
+                } else {
+                    msg.innerText = "Invalid or Expired Code"; msg.style.color = "#FF3B30";
+                    appliedDiscount = 0; appliedCode = ""; appliedCouponId = null;
+                    updateCalc();
+                }
+            });
+        }
+
+        function validateCoupon(cpn, id) {
+            const msg = document.getElementById('cpn-msg');
+            if (cpn.maxUses && cpn.usageCount >= cpn.maxUses) {
+                msg.innerText = "Coupon usage limit reached!"; msg.style.color = "#FF3B30";
+                appliedDiscount = 0; appliedCode = ""; appliedCouponId = null;
+            } else {
+                appliedDiscount = cpn.discount;
+                appliedCode = cpn.code;
+                appliedCouponId = id;
+                msg.innerText = `Success! ${cpn.discount}% Off applied.`; msg.style.color = "#30D158";
+            }
+            updateCalc();
+        }
+
+        function placeOrder() {
+            const table = document.getElementById('in-table').value;
+            const phone = document.getElementById('in-phone').value;
+            if (!table || !phone) return alert("Table & Phone are required!");
+
+            if (!confirm("Place order?")) return;
+
+            // Save phone if new
+            db.collection('users').doc(auth.currentUser.uid).set({ phone: phone }, { merge: true });
+
+            db.collection('orders').add({
+                userId: auth.currentUser.uid,
+                customerName: auth.currentUser.displayName || "Guest",
+                phone: phone,
+                tableNo: table,
+                dishId: dishId,
+                dishName: dishData.name,
+                price: currentPrice,
+                couponCode: appliedCode,
+                discount: currentPrice - finalPrice,
+                finalTotal: finalPrice,
+                status: 'pending',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(ref => {
+                // Increment Usage if Global Coupon
+                if (appliedCouponId && appliedCouponId !== "personal") {
+                    db.collection('coupons').doc(appliedCouponId).update({
+                        usageCount: firebase.firestore.FieldValue.increment(1)
+                    });
+                }
+                location.href = `bill.html?orderId=${ref.id}`;
+            });
+        }
+    </script>
+</body>
+
+</html>
